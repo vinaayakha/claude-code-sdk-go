@@ -40,7 +40,7 @@ const Version = "0.1.0"
 type (
 	// Options
 	ClaudeCodeOptions = types.ClaudeCodeOptions
-	
+
 	// Messages
 	Message          = types.Message
 	UserMessage      = types.UserMessage
@@ -48,37 +48,37 @@ type (
 	SystemMessage    = types.SystemMessage
 	ResultMessage    = types.ResultMessage
 	StreamEvent      = types.StreamEvent
-	
+
 	// Content blocks
-	ContentBlock     = types.ContentBlock
-	TextBlock        = types.TextBlock
-	ThinkingBlock    = types.ThinkingBlock
-	ToolUseBlock     = types.ToolUseBlock
-	ToolResultBlock  = types.ToolResultBlock
-	
+	ContentBlock    = types.ContentBlock
+	TextBlock       = types.TextBlock
+	ThinkingBlock   = types.ThinkingBlock
+	ToolUseBlock    = types.ToolUseBlock
+	ToolResultBlock = types.ToolResultBlock
+
 	// Permissions
-	PermissionMode         = types.PermissionMode
-	PermissionResult       = types.PermissionResult
-	PermissionResultAllow  = types.PermissionResultAllow
-	PermissionResultDeny   = types.PermissionResultDeny
-	PermissionUpdate       = types.PermissionUpdate
-	ToolPermissionContext  = types.ToolPermissionContext
-	CanUseTool             = types.CanUseTool
-	
+	PermissionMode        = types.PermissionMode
+	PermissionResult      = types.PermissionResult
+	PermissionResultAllow = types.PermissionResultAllow
+	PermissionResultDeny  = types.PermissionResultDeny
+	PermissionUpdate      = types.PermissionUpdate
+	ToolPermissionContext = types.ToolPermissionContext
+	CanUseTool            = types.CanUseTool
+
 	// Hooks
 	HookEvent      = types.HookEvent
 	HookCallback   = types.HookCallback
 	HookMatcher    = types.HookMatcher
 	HookJSONOutput = types.HookJSONOutput
 	HookContext    = types.HookContext
-	
+
 	// MCP
 	MCPServerConfig      = types.MCPServerConfig
 	MCPStdioServerConfig = types.MCPStdioServerConfig
 	MCPSSEServerConfig   = types.MCPSSEServerConfig
 	MCPHTTPServerConfig  = types.MCPHTTPServerConfig
 	MCPSDKServerConfig   = types.MCPSDKServerConfig
-	
+
 	// Errors
 	CLINotFoundError   = errors.CLINotFoundError
 	CLIConnectionError = errors.CLIConnectionError
@@ -94,14 +94,14 @@ const (
 	PermissionModeAcceptEdits       = types.PermissionModeAcceptEdits
 	PermissionModePlan              = types.PermissionModePlan
 	PermissionModeBypassPermissions = types.PermissionModeBypassPermissions
-	
+
 	// Message types
 	MessageTypeUser      = types.MessageTypeUser
 	MessageTypeAssistant = types.MessageTypeAssistant
 	MessageTypeSystem    = types.MessageTypeSystem
 	MessageTypeResult    = types.MessageTypeResult
 	MessageTypeStream    = types.MessageTypeStream
-	
+
 	// Hook events
 	HookEventPreToolUse       = types.HookEventPreToolUse
 	HookEventPostToolUse      = types.HookEventPostToolUse
@@ -114,12 +114,12 @@ const (
 // Error constructors
 var (
 	// Error base types
-	ErrCLINotFound    = errors.ErrCLINotFound
-	ErrCLIConnection  = errors.ErrCLIConnection
-	ErrProcess        = errors.ErrProcess
-	ErrJSONDecode     = errors.ErrJSONDecode
-	ErrMessageParse   = errors.ErrMessageParse
-	
+	ErrCLINotFound   = errors.ErrCLINotFound
+	ErrCLIConnection = errors.ErrCLIConnection
+	ErrProcess       = errors.ErrProcess
+	ErrJSONDecode    = errors.ErrJSONDecode
+	ErrMessageParse  = errors.ErrMessageParse
+
 	// Error constructors
 	NewCLINotFoundError   = errors.NewCLINotFoundError
 	NewCLIConnectionError = errors.NewCLIConnectionError

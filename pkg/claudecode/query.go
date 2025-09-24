@@ -79,20 +79,20 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 	if options == nil {
 		options = &types.ClaudeCodeOptions{}
 	}
-	
+
 	// Set environment variable
 	os.Setenv("CLAUDE_CODE_ENTRYPOINT", "sdk-go")
-	
+
 	// Create channels
 	messages := make(chan types.Message, 100)
-	
+
 	// Start query in goroutine
 	go func() {
 		defer close(messages)
-		
+
 		// Create transport
 		t := transport.NewSubprocessTransport(prompt, options, "")
-		
+
 		// Connect
 		if err := t.Connect(ctx); err != nil {
 			messages <- &types.SystemMessage{
@@ -104,13 +104,13 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 			return
 		}
 		defer t.Close()
-		
+
 		// Create query handler
 		isStreaming := false
 		if _, ok := prompt.(chan interface{}); ok {
 			isStreaming = true
 		}
-		
+
 		query := internal.NewQuery(
 			t,
 			isStreaming,
@@ -118,7 +118,7 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 			nil, // No hooks for one-shot queries
 			nil, // No SDK MCP servers for one-shot queries
 		)
-		
+
 		// Start query
 		if err := query.Start(); err != nil {
 			messages <- &types.SystemMessage{
@@ -130,7 +130,7 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 			return
 		}
 		defer query.Stop()
-		
+
 		// Initialize
 		if err := query.Initialize(); err != nil {
 			messages <- &types.SystemMessage{
@@ -141,7 +141,7 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 			}
 			return
 		}
-		
+
 		// Process messages
 		for {
 			select {
@@ -151,7 +151,7 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 				if !ok {
 					return
 				}
-				
+
 				msg, err := internal.ParseMessage(data)
 				if err != nil {
 					messages <- &types.SystemMessage{
@@ -162,9 +162,9 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 					}
 					continue
 				}
-				
+
 				messages <- msg
-				
+
 				// Check if we got a result message (end of conversation)
 				if _, isResult := msg.(*types.ResultMessage); isResult {
 					return
@@ -173,7 +173,7 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 				if !ok {
 					return
 				}
-				
+
 				messages <- &types.SystemMessage{
 					Subtype: "error",
 					Data: map[string]interface{}{
@@ -183,7 +183,7 @@ func Query(ctx context.Context, prompt interface{}, options *types.ClaudeCodeOpt
 			}
 		}
 	}()
-	
+
 	return messages, nil
 }
 
@@ -193,11 +193,11 @@ func QuerySync(ctx context.Context, prompt string, options *types.ClaudeCodeOpti
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var messages []types.Message
 	for msg := range msgChan {
 		messages = append(messages, msg)
-		
+
 		// Check for errors
 		if sysMsg, ok := msg.(*types.SystemMessage); ok && sysMsg.Subtype == "error" {
 			if errStr, ok := sysMsg.Data["error"].(string); ok {
@@ -205,6 +205,6 @@ func QuerySync(ctx context.Context, prompt string, options *types.ClaudeCodeOpti
 			}
 		}
 	}
-	
+
 	return messages, nil
 }

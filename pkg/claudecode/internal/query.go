@@ -20,20 +20,20 @@ type Query struct {
 	canUseTool      types.CanUseTool
 	hooks           map[types.HookEvent][]types.HookMatcher
 	sdkMCPServers   map[string]interface{} // SDK MCP server instances
-	
-	reader          *bufio.Reader
-	ctx             context.Context
-	cancel          context.CancelFunc
-	
+
+	reader *bufio.Reader
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// Channel for messages
-	messages        chan map[string]interface{}
-	errors          chan error
-	
+	messages chan map[string]interface{}
+	errors   chan error
+
 	// Control state
-	initialized     bool
-	hookCallbacks   map[string]types.HookCallback
-	mu              sync.RWMutex
-	wg              sync.WaitGroup
+	initialized   bool
+	hookCallbacks map[string]types.HookCallback
+	mu            sync.RWMutex
+	wg            sync.WaitGroup
 }
 
 // NewQuery creates a new Query handler
@@ -45,7 +45,7 @@ func NewQuery(
 	sdkMCPServers map[string]interface{},
 ) *Query {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &Query{
 		transport:       transport,
 		isStreamingMode: isStreamingMode,
@@ -65,10 +65,10 @@ func (q *Query) Start() error {
 	if q.reader == nil {
 		q.reader = bufio.NewReader(q.transport.Reader())
 	}
-	
+
 	q.wg.Add(1)
 	go q.readLoop()
-	
+
 	return nil
 }
 
@@ -85,7 +85,7 @@ func (q *Query) Initialize() error {
 	if q.initialized {
 		return nil
 	}
-	
+
 	// Build hooks map for initialization
 	hooksMap := make(map[string]interface{})
 	if q.hooks != nil {
@@ -98,7 +98,7 @@ func (q *Query) Initialize() error {
 					q.mu.Lock()
 					q.hookCallbacks[callbackID] = callback
 					q.mu.Unlock()
-					
+
 					matcherMap := map[string]interface{}{
 						"matcher":     matcher.Matcher,
 						"callback_id": callbackID,
@@ -109,7 +109,7 @@ func (q *Query) Initialize() error {
 			hooksMap[string(event)] = matchersList
 		}
 	}
-	
+
 	// Wait for initialization to complete
 	// In streaming mode, we don't send an explicit init message
 	q.initialized = true
@@ -135,14 +135,14 @@ func (q *Query) Interrupt() error {
 			Subtype: "interrupt",
 		},
 	}
-	
+
 	return q.sendControlRequest(request)
 }
 
 // readLoop continuously reads messages from the transport
 func (q *Query) readLoop() {
 	defer q.wg.Done()
-	
+
 	for {
 		select {
 		case <-q.ctx.Done():
@@ -158,11 +158,11 @@ func (q *Query) readLoop() {
 				}
 				return
 			}
-			
+
 			if line == "" {
 				continue
 			}
-			
+
 			var data map[string]interface{}
 			if err := json.Unmarshal([]byte(line), &data); err != nil {
 				select {
@@ -171,7 +171,7 @@ func (q *Query) readLoop() {
 				}
 				continue
 			}
-			
+
 			// Check if this is a control request
 			if msgType, ok := data["type"].(string); ok && msgType == "control_request" {
 				go q.handleControlRequest(data)
@@ -195,9 +195,9 @@ func (q *Query) handleControlRequest(data map[string]interface{}) {
 		q.sendErrorResponse(requestID, "invalid request format")
 		return
 	}
-	
+
 	subtype, _ := request["subtype"].(string)
-	
+
 	switch subtype {
 	case "can_use_tool":
 		q.handleCanUseTool(requestID, request)
@@ -218,15 +218,15 @@ func (q *Query) handleCanUseTool(requestID string, request map[string]interface{
 		})
 		return
 	}
-	
+
 	toolName, _ := request["tool_name"].(string)
 	input, _ := request["input"].(map[string]interface{})
-	
+
 	// Build context
 	ctx := &types.ToolPermissionContext{
 		Suggestions: []types.PermissionUpdate{},
 	}
-	
+
 	// Extract suggestions if present
 	if suggestions, ok := request["permission_suggestions"].([]interface{}); ok {
 		for _, s := range suggestions {
@@ -237,14 +237,14 @@ func (q *Query) handleCanUseTool(requestID string, request map[string]interface{
 			}
 		}
 	}
-	
+
 	// Call the callback
 	result, err := q.canUseTool(toolName, input, ctx)
 	if err != nil {
 		q.sendErrorResponse(requestID, err.Error())
 		return
 	}
-	
+
 	// Convert result to response
 	var response map[string]interface{}
 	switch r := result.(type) {
@@ -271,7 +271,7 @@ func (q *Query) handleCanUseTool(requestID string, request map[string]interface{
 			"behavior": "allow",
 		}
 	}
-	
+
 	q.sendSuccessResponse(requestID, response)
 }
 
@@ -280,28 +280,28 @@ func (q *Query) handleHookCallback(requestID string, request map[string]interfac
 	callbackID, _ := request["callback_id"].(string)
 	input, _ := request["input"].(map[string]interface{})
 	toolUseID, _ := request["tool_use_id"].(string)
-	
+
 	q.mu.RLock()
 	callback, exists := q.hookCallbacks[callbackID]
 	q.mu.RUnlock()
-	
+
 	if !exists {
 		q.sendErrorResponse(requestID, fmt.Sprintf("callback not found: %s", callbackID))
 		return
 	}
-	
+
 	ctx := &types.HookContext{}
 	var toolUseIDPtr *string
 	if toolUseID != "" {
 		toolUseIDPtr = &toolUseID
 	}
-	
+
 	output, err := callback(input, toolUseIDPtr, ctx)
 	if err != nil {
 		q.sendErrorResponse(requestID, err.Error())
 		return
 	}
-	
+
 	response := make(map[string]interface{})
 	if output != nil {
 		if output.Decision != nil {
@@ -314,23 +314,23 @@ func (q *Query) handleHookCallback(requestID string, request map[string]interfac
 			response["hookSpecificOutput"] = output.HookSpecificOutput
 		}
 	}
-	
+
 	q.sendSuccessResponse(requestID, response)
 }
 
 // handleMCPMessage processes MCP server messages
 func (q *Query) handleMCPMessage(requestID string, request map[string]interface{}) {
 	serverName, _ := request["server_name"].(string)
-	
+
 	_, exists := q.sdkMCPServers[serverName]
 	if !exists {
 		q.sendErrorResponse(requestID, fmt.Sprintf("SDK MCP server not found: %s", serverName))
 		return
 	}
-	
+
 	// TODO: Implement MCP message handling
 	// This would involve calling the appropriate method on the MCP server instance
-	
+
 	q.sendSuccessResponse(requestID, map[string]interface{}{
 		"result": "not implemented",
 	})
@@ -342,7 +342,7 @@ func (q *Query) sendControlRequest(request types.SDKControlRequest) error {
 	if err != nil {
 		return err
 	}
-	
+
 	data = append(data, '\n')
 	return q.transport.Write(data)
 }
@@ -357,7 +357,7 @@ func (q *Query) sendSuccessResponse(requestID string, response map[string]interf
 			Response:  response,
 		},
 	}
-	
+
 	if data, err := json.Marshal(resp); err == nil {
 		q.transport.Write(append(data, '\n'))
 	}
@@ -373,7 +373,7 @@ func (q *Query) sendErrorResponse(requestID string, errorMsg string) {
 			Error:     errorMsg,
 		},
 	}
-	
+
 	if data, err := json.Marshal(resp); err == nil {
 		q.transport.Write(append(data, '\n'))
 	}

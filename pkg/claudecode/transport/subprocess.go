@@ -21,23 +21,23 @@ const maxBufferSize = 1024 * 1024 // 1MB
 
 // SubprocessTransport implements Transport using the Claude CLI subprocess
 type SubprocessTransport struct {
-	prompt      interface{} // string or channel for streaming
-	options     *types.ClaudeCodeOptions
-	cliPath     string
-	cwd         string
-	
-	cmd         *exec.Cmd
-	stdin       io.WriteCloser
-	stdout      io.ReadCloser
-	stderr      io.ReadCloser
-	reader      *bufio.Reader
-	
-	ready       bool
-	connected   bool
-	exitError   error
-	debug       bool
-	
-	mu          sync.RWMutex
+	prompt  interface{} // string or channel for streaming
+	options *types.ClaudeCodeOptions
+	cliPath string
+	cwd     string
+
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout io.ReadCloser
+	stderr io.ReadCloser
+	reader *bufio.Reader
+
+	ready     bool
+	connected bool
+	exitError error
+	debug     bool
+
+	mu sync.RWMutex
 }
 
 // NewSubprocessTransport creates a new subprocess transport
@@ -45,17 +45,17 @@ func NewSubprocessTransport(prompt interface{}, options *types.ClaudeCodeOptions
 	if cliPath == "" {
 		cliPath = findCLI()
 	}
-	
+
 	cwd := ""
 	if options != nil && options.CWD != nil {
 		cwd = *options.CWD
 	}
-	
+
 	return &SubprocessTransport{
-		prompt:   prompt,
-		options:  options,
-		cliPath:  cliPath,
-		cwd:      cwd,
+		prompt:  prompt,
+		options: options,
+		cliPath: cliPath,
+		cwd:     cwd,
 	}
 }
 
@@ -63,25 +63,25 @@ func NewSubprocessTransport(prompt interface{}, options *types.ClaudeCodeOptions
 func (t *SubprocessTransport) Connect(ctx context.Context) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	if t.connected {
 		return nil
 	}
-	
+
 	// Validate CLI path
 	if t.cliPath == "" {
 		return errors.NewCLINotFoundError(getCLINotFoundMessage())
 	}
-	
+
 	// Build command
 	args := t.buildCommandArgs()
 	t.cmd = exec.CommandContext(ctx, t.cliPath, args...)
-	
+
 	// Set working directory
 	if t.cwd != "" {
 		t.cmd.Dir = t.cwd
 	}
-	
+
 	// Set environment
 	t.cmd.Env = os.Environ()
 	if t.options != nil && t.options.Env != nil {
@@ -89,37 +89,37 @@ func (t *SubprocessTransport) Connect(ctx context.Context) error {
 			t.cmd.Env = append(t.cmd.Env, fmt.Sprintf("%s=%s", key, value))
 		}
 	}
-	
+
 	// Get pipes
 	var err error
 	t.stdin, err = t.cmd.StdinPipe()
 	if err != nil {
 		return errors.NewCLIConnectionError("failed to create stdin pipe", err)
 	}
-	
+
 	t.stdout, err = t.cmd.StdoutPipe()
 	if err != nil {
 		return errors.NewCLIConnectionError("failed to create stdout pipe", err)
 	}
-	
+
 	t.stderr, err = t.cmd.StderrPipe()
 	if err != nil {
 		return errors.NewCLIConnectionError("failed to create stderr pipe", err)
 	}
-	
+
 	// Create buffered reader for stdout
 	t.reader = bufio.NewReaderSize(t.stdout, maxBufferSize)
-	
+
 	// Start the process
 	if err := t.cmd.Start(); err != nil {
 		return errors.NewCLIConnectionError("failed to start CLI process", err)
 	}
-	
+
 	t.connected = true
-	
+
 	// Start monitoring process exit
 	go t.monitorExit()
-	
+
 	// If we have a string prompt, write it immediately
 	if prompt, ok := t.prompt.(string); ok && prompt != "" {
 		if err := t.Write([]byte(prompt + "\n")); err != nil {
@@ -127,7 +127,7 @@ func (t *SubprocessTransport) Connect(ctx context.Context) error {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -135,13 +135,13 @@ func (t *SubprocessTransport) Connect(ctx context.Context) error {
 func (t *SubprocessTransport) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	if !t.connected {
 		return nil
 	}
-	
+
 	t.connected = false
-	
+
 	// Close pipes
 	if t.stdin != nil {
 		t.stdin.Close()
@@ -152,13 +152,13 @@ func (t *SubprocessTransport) Close() error {
 	if t.stderr != nil {
 		t.stderr.Close()
 	}
-	
+
 	// Kill the process if it's still running
 	if t.cmd != nil && t.cmd.Process != nil {
 		t.cmd.Process.Kill()
 		t.cmd.Wait()
 	}
-	
+
 	return nil
 }
 
@@ -166,20 +166,20 @@ func (t *SubprocessTransport) Close() error {
 func (t *SubprocessTransport) Write(data []byte) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	if !t.connected {
 		return errors.NewCLIConnectionError("transport not connected", nil)
 	}
-	
+
 	if t.stdin == nil {
 		return errors.NewCLIConnectionError("stdin not available", nil)
 	}
-	
+
 	_, err := t.stdin.Write(data)
 	if err != nil {
 		return errors.NewCLIConnectionError("failed to write to stdin", err)
 	}
-	
+
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (t *SubprocessTransport) Write(data []byte) error {
 func (t *SubprocessTransport) Reader() io.Reader {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	return t.reader
 }
 
@@ -195,7 +195,7 @@ func (t *SubprocessTransport) Reader() io.Reader {
 func (t *SubprocessTransport) IsConnected() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	return t.connected
 }
 
@@ -209,58 +209,58 @@ func (t *SubprocessTransport) SetDebug(debug bool) {
 // buildCommandArgs builds the CLI command arguments
 func (t *SubprocessTransport) buildCommandArgs() []string {
 	args := []string{"--output-format", "stream-json", "--verbose"}
-	
+
 	if t.options == nil {
 		return args
 	}
-	
+
 	if t.options.SystemPrompt != nil {
 		args = append(args, "--system-prompt", *t.options.SystemPrompt)
 	}
-	
+
 	if t.options.AppendSystemPrompt != nil {
 		args = append(args, "--append-system-prompt", *t.options.AppendSystemPrompt)
 	}
-	
+
 	if len(t.options.AllowedTools) > 0 {
 		args = append(args, "--allowedTools", strings.Join(t.options.AllowedTools, ","))
 	}
-	
+
 	if t.options.MaxTurns != nil {
 		args = append(args, "--max-turns", strconv.Itoa(*t.options.MaxTurns))
 	}
-	
+
 	if len(t.options.DisallowedTools) > 0 {
 		args = append(args, "--disallowedTools", strings.Join(t.options.DisallowedTools, ","))
 	}
-	
+
 	if t.options.Model != nil {
 		args = append(args, "--model", *t.options.Model)
 	}
-	
+
 	if t.options.PermissionMode != nil {
 		args = append(args, "--permission-mode", string(*t.options.PermissionMode))
 	}
-	
+
 	if t.options.Resume != nil {
 		args = append(args, "--resume", *t.options.Resume)
 		if t.options.ForkSession {
 			args = append(args, "--fork-session")
 		}
 	}
-	
+
 	if t.options.ContinueConversation {
 		args = append(args, "--continue-conversation")
 	}
-	
+
 	if t.options.Settings != nil {
 		args = append(args, "--settings", *t.options.Settings)
 	}
-	
+
 	if t.options.User != nil {
 		args = append(args, "--user", *t.options.User)
 	}
-	
+
 	// MCP servers
 	if t.options.MCPServersPath != nil {
 		args = append(args, "--mcp-servers", *t.options.MCPServersPath)
@@ -279,22 +279,22 @@ func (t *SubprocessTransport) buildCommandArgs() []string {
 			// TODO: Implement JSON serialization of MCP servers
 		}
 	}
-	
+
 	// Add directories
 	for _, dir := range t.options.AddDirs {
 		args = append(args, "--add-dir", dir)
 	}
-	
+
 	// Permission prompt tool name
 	if t.options.PermissionPromptToolName != nil {
 		args = append(args, "--permission-prompt-tool-name", *t.options.PermissionPromptToolName)
 	}
-	
+
 	// Include partial messages
 	if t.options.IncludePartialMessages {
 		args = append(args, "--include-partial-messages")
 	}
-	
+
 	// Extra args
 	if t.options.ExtraArgs != nil {
 		for key, value := range t.options.ExtraArgs {
@@ -305,22 +305,22 @@ func (t *SubprocessTransport) buildCommandArgs() []string {
 			}
 		}
 	}
-	
+
 	// Debug to stderr
 	if t.options.DebugStderr != nil {
 		args = append(args, "--debug-to-stderr")
 	}
-	
+
 	return args
 }
 
 // monitorExit monitors the subprocess for exit
 func (t *SubprocessTransport) monitorExit() {
 	err := t.cmd.Wait()
-	
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			t.exitError = errors.NewProcessError("CLI process exited", exitErr.ExitCode(), string(exitErr.Stderr))
@@ -328,7 +328,7 @@ func (t *SubprocessTransport) monitorExit() {
 			t.exitError = errors.NewCLIConnectionError("CLI process error", err)
 		}
 	}
-	
+
 	t.connected = false
 }
 
@@ -338,7 +338,7 @@ func findCLI() string {
 	if path, err := exec.LookPath("claude"); err == nil {
 		return path
 	}
-	
+
 	// Common locations
 	locations := []string{
 		filepath.Join(os.Getenv("HOME"), ".npm-global/bin/claude"),
@@ -347,24 +347,24 @@ func findCLI() string {
 		filepath.Join(os.Getenv("HOME"), "node_modules/.bin/claude"),
 		filepath.Join(os.Getenv("HOME"), ".yarn/bin/claude"),
 	}
-	
+
 	// Windows-specific locations
 	if runtime.GOOS == "windows" {
 		appData := os.Getenv("APPDATA")
 		if appData != "" {
-			locations = append(locations, 
+			locations = append(locations,
 				filepath.Join(appData, "npm", "claude.cmd"),
 				filepath.Join(appData, "npm", "claude"),
 			)
 		}
 	}
-	
+
 	for _, loc := range locations {
 		if _, err := os.Stat(loc); err == nil {
 			return loc
 		}
 	}
-	
+
 	return ""
 }
 
@@ -377,11 +377,11 @@ func getCLINotFoundMessage() string {
 Install Node.js from: https://nodejs.org/
 
 After installing Node.js, install Claude Code:
-  npm install -g @anthropic-ai/claude-code`
+  npm install -g @vinaayakha/claude-code`
 	}
-	
+
 	return `Claude Code not found. Install with:
-  npm install -g @anthropic-ai/claude-code
+  npm install -g @vinaayakha/claude-code
 
 If already installed locally, try:
   export PATH="$HOME/node_modules/.bin:$PATH"

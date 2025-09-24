@@ -43,15 +43,15 @@ type ClaudeSDKClient struct {
 	options   *types.ClaudeCodeOptions
 	transport transport.Transport
 	query     *internal.Query
-	
+
 	connected bool
 	mu        sync.RWMutex
-	
+
 	// Message handling
-	messages  chan types.Message
-	errors    chan error
-	ctx       context.Context
-	cancel    context.CancelFunc
+	messages chan types.Message
+	errors   chan error
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 // NewClaudeSDKClient creates a new Claude SDK client
@@ -59,12 +59,12 @@ func NewClaudeSDKClient(options *types.ClaudeCodeOptions) *ClaudeSDKClient {
 	if options == nil {
 		options = &types.ClaudeCodeOptions{}
 	}
-	
+
 	// Set environment variable
 	os.Setenv("CLAUDE_CODE_ENTRYPOINT", "sdk-go-client")
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &ClaudeSDKClient{
 		options:  options,
 		messages: make(chan types.Message, 100),
@@ -78,35 +78,35 @@ func NewClaudeSDKClient(options *types.ClaudeCodeOptions) *ClaudeSDKClient {
 func (c *ClaudeSDKClient) Connect(ctx context.Context, prompt interface{}) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if c.connected {
 		return stderrors.New("already connected")
 	}
-	
+
 	// Validate options for streaming mode requirements
 	if c.options.CanUseTool != nil {
 		// CanUseTool requires streaming mode
 		if _, ok := prompt.(string); ok {
 			return errors.New("can_use_tool callback requires streaming mode. Please provide prompt as a channel instead of a string")
 		}
-		
+
 		// CanUseTool and permission_prompt_tool_name are mutually exclusive
 		if c.options.PermissionPromptToolName != nil {
 			return errors.New("can_use_tool callback cannot be used with permission_prompt_tool_name. Please use one or the other")
 		}
-		
+
 		// Automatically set permission_prompt_tool_name for control protocol
 		c.options.PermissionPromptToolName = stringPtr("stdio")
 	}
-	
+
 	// Create transport
 	c.transport = transport.NewSubprocessTransport(prompt, c.options, "")
-	
+
 	// Connect transport
 	if err := c.transport.Connect(ctx); err != nil {
 		return err
 	}
-	
+
 	// Extract SDK MCP servers
 	sdkMCPServers := make(map[string]interface{})
 	if c.options.MCPServers != nil {
@@ -116,10 +116,10 @@ func (c *ClaudeSDKClient) Connect(ctx context.Context, prompt interface{}) error
 			}
 		}
 	}
-	
+
 	// Convert hooks format
 	hooks := c.convertHooks()
-	
+
 	// Create query handler
 	c.query = internal.NewQuery(
 		c.transport,
@@ -128,30 +128,30 @@ func (c *ClaudeSDKClient) Connect(ctx context.Context, prompt interface{}) error
 		hooks,
 		sdkMCPServers,
 	)
-	
+
 	// Start query handler
 	if err := c.query.Start(); err != nil {
 		c.transport.Close()
 		return err
 	}
-	
+
 	// Initialize
 	if err := c.query.Initialize(); err != nil {
 		c.query.Stop()
 		c.transport.Close()
 		return err
 	}
-	
+
 	c.connected = true
-	
+
 	// Start message processing
 	go c.processMessages()
-	
+
 	// If we have a channel prompt, start streaming it
 	if ch, ok := prompt.(chan interface{}); ok {
 		go c.streamPrompt(ch)
 	}
-	
+
 	return nil
 }
 
@@ -159,25 +159,25 @@ func (c *ClaudeSDKClient) Connect(ctx context.Context, prompt interface{}) error
 func (c *ClaudeSDKClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if !c.connected {
 		return nil
 	}
-	
+
 	c.connected = false
 	c.cancel()
-	
+
 	if c.query != nil {
 		c.query.Stop()
 	}
-	
+
 	if c.transport != nil {
 		return c.transport.Close()
 	}
-	
+
 	close(c.messages)
 	close(c.errors)
-	
+
 	return nil
 }
 
@@ -185,11 +185,11 @@ func (c *ClaudeSDKClient) Close() error {
 func (c *ClaudeSDKClient) SendMessage(prompt string, sessionID string) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	if !c.connected {
 		return errors.NewCLIConnectionError("not connected. Call Connect() first", nil)
 	}
-	
+
 	message := map[string]interface{}{
 		"type": "user",
 		"message": map[string]interface{}{
@@ -199,12 +199,12 @@ func (c *ClaudeSDKClient) SendMessage(prompt string, sessionID string) error {
 		"parent_tool_use_id": nil,
 		"session_id":         sessionID,
 	}
-	
+
 	data, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
-	
+
 	return c.transport.Write(append(data, '\n'))
 }
 
@@ -212,16 +212,16 @@ func (c *ClaudeSDKClient) SendMessage(prompt string, sessionID string) error {
 func (c *ClaudeSDKClient) SendRawMessage(message map[string]interface{}) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	if !c.connected {
 		return errors.NewCLIConnectionError("not connected. Call Connect() first", nil)
 	}
-	
+
 	data, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
-	
+
 	return c.transport.Write(append(data, '\n'))
 }
 
@@ -239,11 +239,11 @@ func (c *ClaudeSDKClient) Errors() <-chan error {
 func (c *ClaudeSDKClient) Interrupt() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	if !c.connected {
 		return errors.NewCLIConnectionError("not connected. Call Connect() first", nil)
 	}
-	
+
 	return c.query.Interrupt()
 }
 
@@ -251,7 +251,7 @@ func (c *ClaudeSDKClient) Interrupt() error {
 func (c *ClaudeSDKClient) IsConnected() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	return c.connected
 }
 
@@ -265,7 +265,7 @@ func (c *ClaudeSDKClient) processMessages() {
 			if !ok {
 				return
 			}
-			
+
 			msg, err := internal.ParseMessage(data)
 			if err != nil {
 				select {
@@ -275,7 +275,7 @@ func (c *ClaudeSDKClient) processMessages() {
 				}
 				continue
 			}
-			
+
 			select {
 			case c.messages <- msg:
 			case <-c.ctx.Done():
@@ -285,7 +285,7 @@ func (c *ClaudeSDKClient) processMessages() {
 			if !ok {
 				return
 			}
-			
+
 			select {
 			case c.errors <- err:
 			case <-c.ctx.Done():
@@ -305,7 +305,7 @@ func (c *ClaudeSDKClient) streamPrompt(ch chan interface{}) {
 			if !ok {
 				return
 			}
-			
+
 			// Convert to map if needed
 			var message map[string]interface{}
 			switch v := msg.(type) {
@@ -324,7 +324,7 @@ func (c *ClaudeSDKClient) streamPrompt(ch chan interface{}) {
 			default:
 				continue
 			}
-			
+
 			if err := c.SendRawMessage(message); err != nil {
 				select {
 				case c.errors <- err:
