@@ -13,8 +13,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/errors"
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/types"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/errors"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/types"
 )
 
 const maxBufferSize = 1024 * 1024 // 1MB

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/errors"
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/types"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/errors"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/types"
 )
 
 // ParseMessage parses a raw message into the appropriate typed message

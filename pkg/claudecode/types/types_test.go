@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/types"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/types"
 )
 
 func TestMessageTypes(t *testing.T) {

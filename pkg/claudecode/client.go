@@ -7,10 +7,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/errors"
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/internal"
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/transport"
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/types"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/errors"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/internal"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/transport"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/types"
 )
 
 // ClaudeSDKClient provides bidirectional, interactive conversations with Claude Code.

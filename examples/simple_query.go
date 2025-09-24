@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode"
-	"github.com/anthropic-ai/claude-code-sdk-go/pkg/claudecode/types"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode"
+	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/types"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-package main
+package examples
 
 import (
 	"bufio"
@@ -12,7 +12,7 @@ import (
 	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/types"
 )
 
-func main() {
+func examples() {
 	ctx := context.Background()
 
 	// Create client with options
