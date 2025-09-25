@@ -17,7 +17,7 @@ import (
 	"github.com/vinaayakha/claude-code-sdk-go/pkg/claudecode/types"
 )
 
-const maxBufferSize = 1024 * 1024 // 1MB
+const maxBufferSize = 1024 * 1024 * 16 // 16MB
 
 // SubprocessTransport implements Transport using the Claude CLI subprocess
 type SubprocessTransport struct {
@@ -120,13 +120,21 @@ func (t *SubprocessTransport) Connect(ctx context.Context) error {
 	// Start monitoring process exit
 	go t.monitorExit()
 
-	// If we have a string prompt, write it immediately
+	// Unlock before writing to avoid deadlock
+	t.mu.Unlock()
+
+	// If we have a string prompt, write it immediately as a properly formatted message
 	if prompt, ok := t.prompt.(string); ok && prompt != "" {
+		// For non-streaming mode, we need to send the prompt as plain text
+		// The CLI expects the prompt directly when not in streaming mode
 		if err := t.Write([]byte(prompt + "\n")); err != nil {
 			t.Close()
 			return err
 		}
 	}
+
+	// Re-lock to maintain the defer unlock behavior
+	t.mu.Lock()
 
 	return nil
 }
@@ -134,29 +142,43 @@ func (t *SubprocessTransport) Connect(ctx context.Context) error {
 // Close terminates the connection
 func (t *SubprocessTransport) Close() error {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
+	
 	if !t.connected {
+		t.mu.Unlock()
 		return nil
 	}
 
 	t.connected = false
+	
+	// Get references while holding lock
+	stdin := t.stdin
+	stdout := t.stdout
+	stderr := t.stderr
+	cmd := t.cmd
+	
+	// Clear references
+	t.stdin = nil
+	t.stdout = nil
+	t.stderr = nil
+	t.cmd = nil
+	
+	t.mu.Unlock()
 
-	// Close pipes
-	if t.stdin != nil {
-		t.stdin.Close()
+	// Close pipes without holding lock
+	if stdin != nil {
+		stdin.Close()
 	}
-	if t.stdout != nil {
-		t.stdout.Close()
+	if stdout != nil {
+		stdout.Close()
 	}
-	if t.stderr != nil {
-		t.stderr.Close()
+	if stderr != nil {
+		stderr.Close()
 	}
 
 	// Kill the process if it's still running
-	if t.cmd != nil && t.cmd.Process != nil {
-		t.cmd.Process.Kill()
-		t.cmd.Wait()
+	if cmd != nil && cmd.Process != nil {
+		cmd.Process.Kill()
+		cmd.Wait()
 	}
 
 	return nil
@@ -165,17 +187,22 @@ func (t *SubprocessTransport) Close() error {
 // Write sends data to the subprocess
 func (t *SubprocessTransport) Write(data []byte) error {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-
 	if !t.connected {
+		t.mu.RUnlock()
 		return errors.NewCLIConnectionError("transport not connected", nil)
 	}
 
 	if t.stdin == nil {
+		t.mu.RUnlock()
 		return errors.NewCLIConnectionError("stdin not available", nil)
 	}
 
-	_, err := t.stdin.Write(data)
+	// Get stdin reference while holding the lock
+	stdin := t.stdin
+	t.mu.RUnlock()
+
+	// Write without holding the lock to avoid deadlocks
+	_, err := stdin.Write(data)
 	if err != nil {
 		return errors.NewCLIConnectionError("failed to write to stdin", err)
 	}
@@ -186,9 +213,10 @@ func (t *SubprocessTransport) Write(data []byte) error {
 // Reader returns the stdout reader
 func (t *SubprocessTransport) Reader() io.Reader {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
+	reader := t.reader
+	t.mu.RUnlock()
 
-	return t.reader
+	return reader
 }
 
 // IsConnected returns true if connected
@@ -206,9 +234,16 @@ func (t *SubprocessTransport) SetDebug(debug bool) {
 	t.mu.Unlock()
 }
 
+// GetExitError returns any exit error from the subprocess
+func (t *SubprocessTransport) GetExitError() error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.exitError
+}
+
 // buildCommandArgs builds the CLI command arguments
 func (t *SubprocessTransport) buildCommandArgs() []string {
-	args := []string{"--output-format", "stream-json", "--verbose"}
+	args := []string{"--print", "--output-format", "stream-json", "--verbose"}
 
 	if t.options == nil {
 		return args
@@ -319,8 +354,6 @@ func (t *SubprocessTransport) monitorExit() {
 	err := t.cmd.Wait()
 
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			t.exitError = errors.NewProcessError("CLI process exited", exitErr.ExitCode(), string(exitErr.Stderr))
@@ -328,8 +361,8 @@ func (t *SubprocessTransport) monitorExit() {
 			t.exitError = errors.NewCLIConnectionError("CLI process error", err)
 		}
 	}
-
 	t.connected = false
+	t.mu.Unlock()
 }
 
 // findCLI attempts to find the Claude CLI binary

@@ -87,12 +87,12 @@ func (c *ClaudeSDKClient) Connect(ctx context.Context, prompt interface{}) error
 	if c.options.CanUseTool != nil {
 		// CanUseTool requires streaming mode
 		if _, ok := prompt.(string); ok {
-			return errors.New("can_use_tool callback requires streaming mode. Please provide prompt as a channel instead of a string")
+			return stderrors.New("can_use_tool callback requires streaming mode. Please provide prompt as a channel instead of a string")
 		}
 
 		// CanUseTool and permission_prompt_tool_name are mutually exclusive
 		if c.options.PermissionPromptToolName != nil {
-			return errors.New("can_use_tool callback cannot be used with permission_prompt_tool_name. Please use one or the other")
+			return stderrors.New("can_use_tool callback cannot be used with permission_prompt_tool_name. Please use one or the other")
 		}
 
 		// Automatically set permission_prompt_tool_name for control protocol
